@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VDOpro - AI Offline Mobile Video Editor Studio</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: #1e1e1e;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 18px;
+            color: #bb86fc;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            background: #2b2b2b;
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button.primary {
+            background: #bb86fc;
+            color: #000;
+        }
+
+        button.accent {
+            background: #03dac6;
+            color: #000;
+        }
+
+        .preview-container {
+            position: relative;
+            width: 100%;
+            height: 240px;
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video, canvas#renderCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .overlay-text {
+            position: absolute;
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        .controls-bar {
+            padding: 8px 16px;
+            background-color: #181818;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .time-display {
+            font-size: 12px;
+            color: #aaa;
+            width: 80px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: #bb86fc;
+        }
+
+        .timeline-section {
+            flex: 1;
+            background-color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 8px;
+            overflow-y: auto;
+        }
+
+        .timeline-track {
+            background-color: #252525;
+            height: 60px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            gap: 8px;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+
+        .clip-item {
+            height: 100%;
+            background: #3700b3;
+            border: 2px solid #bb86fc;
+            border-radius: 6px;
+            padding: 6px 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            font-size: 11px;
+            min-width: 90px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .toolbar {
+            background-color: #252525;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #333;
+        }
+
+        .tool-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            color: #ccc;
+            background: transparent;
+            padding: 4px;
+        }
+
+        .tool-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        /* Modal Bottom Sheet */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            justify-content: flex-end;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: #1e1e1e;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #bb86fc;
+            margin-bottom: 8px;
+        }
+
+        .ai-tool-card {
+            background: #2a2a2a;
+            padding: 14px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .ai-tool-card h4 {
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .ai-tool-card p {
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span>✨</span> VDOpro AI Studio
+        </div>
+        <div class="header-actions">
+            <button onclick="document.getElementById('fileInput').click()">
+                📂 Import
+            </button>
+            <button class="primary" onclick="openAiModal()">
+                🤖 AI Tools
+            </button>
+            <button class="accent" onclick="exportVideo()">
+                ⚡ Export
+            </button>
+        </div>
+    </header>
+
+    <input type="file" id="fileInput" accept="video/*" multiple onchange="handleFileImport(event)">
+
+    <div class="preview-container">
+        <video id="videoPreview" playsinline></video>
+        <canvas id="renderCanvas" style="display: none;"></canvas>
+        <div id="textOverlay" class="overlay-text"></div>
+    </div>
+
+    <div class="controls-bar">
+        <button id="playBtn" onclick="togglePlay()">▶</button>
+        <span id="timeDisplay" class="time-display">00:00 / 00:00</span>
+        <input type="range" id="seekBar" value="0" min="0" max="100" step="0.1" oninput="seekVideo(this.value)">
+    </div>
+
+    <div class="timeline-section">
+        <div style="font-size: 12px; color: #888;">Multi-Track Timeline</div>
+        <div class="timeline-track" id="timelineClips">
+            <div style="font-size: 12px; color: #666; width: 100%; text-align: center;">
+                Tap "📂 Import" to load local video files
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button class="tool-btn" onclick="document.getElementById('fileInput').click()">
+            <span>➕</span>
+            Add Clip
+        </button>
+        <button class="tool-btn" onclick="splitClip()">
+            <span>✂️</span>
+            Split
+        </button>
+        <button class="tool-btn" onclick="openAiModal()">
+            <span>🪄</span>
+            AI Smart Cut
+        </button>
+        <button class="tool-btn" onclick="applyColorGrade('cinematic')">
+            <span>🎨</span>
+            Cinematic
+        </button>
+        <button class="tool-btn" onclick="deleteSelectedClip()">
+            <span>🗑️</span>
+            Delete
+        </button>
+    </div>
+
+    <!-- AI Tools Bottom Sheet Modal -->
+    <div id="aiModal" class="modal" onclick="closeAiModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-title">🤖 Local AI Smart Editing Tools (100% Offline)</div>
+
+            <div class="ai-tool-card" onclick="runAiSilenceRemover()">
+                <h4>🎙️ AI Silence Remover</h4>
+                <p>Scans audio track via Web Audio API to detect quiet pauses and auto-trims dead air.</p>
+            </div>
+
+            <div class="ai-tool-card" onclick="runAiSceneAutoCut()">
+                <h4>🎬 AI Scene Auto-Cut</h4>
+                <p>Samples video frames via Canvas API to detect visual changes & split scenes automatically.</p>
+            </div>
+
+            <div class="ai-tool-card" onclick="runAiSmartColorGrade()">
+                <h4>🎨 AI Smart Color Grade</h4>
+                <p>Intelligent auto-exposure, contrast enhancement, and warm/cool color grading filters.</p>
+            </div>
+
+            <div class="ai-tool-card" onclick="runAiHighlightGenerator()">
+                <h4>⭐ AI Highlight Generator</h4>
+                <p>Calculates peak audio excitement & motion density to extract a quick 15-second highlight reel.</p>
+            </div>
+
+            <button style="margin-top: 8px; justify-content: center;" onclick="closeAiModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                console.log('VDOpro Service Worker Registered');
+            });
+        }
+    </script>
+</body>
+</html>
