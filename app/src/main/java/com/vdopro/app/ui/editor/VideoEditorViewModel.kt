@@ -1,5 +1,7 @@
 package com.vdopro.app.ui.editor
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vdopro.app.ai.AiColorGradingEngine
@@ -7,6 +9,9 @@ import com.vdopro.app.ai.AiHighlightExtractor
 import com.vdopro.app.ai.AiSceneDetector
 import com.vdopro.app.ai.AiSilenceRemover
 import com.vdopro.app.data.media.AudioSampleChunk
+import com.vdopro.app.data.media.ExportState
+import com.vdopro.app.data.media.MediaMetadataExtractor
+import com.vdopro.app.data.media.VideoExporter
 import com.vdopro.app.data.repository.ProjectRepository
 import com.vdopro.app.domain.model.FilterType
 import com.vdopro.app.domain.model.TimelineState
@@ -29,9 +34,33 @@ class VideoEditorViewModel(
     private val _timelineState = MutableStateFlow<TimelineState?>(null)
     val timelineState: StateFlow<TimelineState?> = _timelineState.asStateFlow()
 
+    private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
+    val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
+
     fun loadProject(projectId: String) {
         val project = repository.getProjectById(projectId) ?: VideoProject(id = projectId, name = "New Local Project")
         _timelineState.value = TimelineState(project = project)
+    }
+
+    fun addVideoClipFromUri(context: Context, uri: Uri) {
+        val currentState = _timelineState.value ?: return
+        viewModelScope.launch {
+            val extractor = MediaMetadataExtractor(context)
+            val info = extractor.extractVideoInfo(uri.toString())
+
+            val clipName = uri.lastPathSegment?.substringAfterLast('/') ?: "Imported Video"
+            val newClip = VideoClip(
+                id = UUID.randomUUID().toString(),
+                filePath = uri.toString(),
+                name = clipName,
+                sourceDurationMs = if (info.durationMs > 0) info.durationMs else 10000L
+            )
+
+            val updatedClips = currentState.project.videoClips + newClip
+            val updatedProject = currentState.project.copy(videoClips = updatedClips)
+            _timelineState.value = currentState.copy(project = updatedProject, selectedClipId = newClip.id)
+            repository.updateProject(updatedProject)
+        }
     }
 
     fun addSampleClip() {
@@ -45,7 +74,7 @@ class VideoEditorViewModel(
         )
         val updatedClips = currentState.project.videoClips + newClip
         val updatedProject = currentState.project.copy(videoClips = updatedClips)
-        _timelineState.value = currentState.copy(project = updatedProject)
+        _timelineState.value = currentState.copy(project = updatedProject, selectedClipId = newClip.id)
         repository.updateProject(updatedProject)
     }
 
@@ -102,6 +131,21 @@ class VideoEditorViewModel(
         val newState = state.updateClip(updated)
         _timelineState.value = newState
         repository.updateProject(newState.project)
+    }
+
+    fun startProjectExport(context: Context) {
+        val project = _timelineState.value?.project ?: return
+        val exporter = VideoExporter(context)
+
+        viewModelScope.launch {
+            exporter.exportProject(project, outputFileName = project.name.replace(" ", "_")).collect { state ->
+                _exportState.value = state
+            }
+        }
+    }
+
+    fun resetExportState() {
+        _exportState.value = ExportState.Idle
     }
 
     fun executeAiSilenceRemoval() {
